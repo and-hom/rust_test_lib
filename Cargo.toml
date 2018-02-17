@@ -1,0 +1,8 @@
+[package]
+name = "rust_test_lib"
+version = "0.1.0"
+authors = ["Андрей Хомяков <and.hom@gmail.com>"]
+
+[dependencies]
+serde = "1.0.27"
+bincode = "1.0.0"
