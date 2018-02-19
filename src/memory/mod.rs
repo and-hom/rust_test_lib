@@ -18,7 +18,7 @@ impl<TData> Storage<TData> for MemoryStorage<TData> {
         }
     }
 
-    fn flush(&mut self) {
+    fn clear(&mut self) {
         let s = &mut (self.storage);
         s.clear();
     }

@@ -19,12 +19,12 @@ fn main() {
 fn do_test<T>(s: &mut Storage<T>, val1: T, val2: T) where T: Serialize + DeserializeOwned + Display {
     //    let mut s: Box<Storage<T>> = disk::new("/tmp/aaa");
 
-    s.flush();
+    s.clear();
     println!("=============================");
     print_data(s.read("id"));
     s.store("id", val1);
     print_data(s.read("id"));
-    s.flush();
+    s.clear();
     print_data(s.read("id"));
     s.store("id", val2);
     print_data(s.read("id"));

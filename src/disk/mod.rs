@@ -95,7 +95,7 @@ impl<TData> Storage<TData> for FileStorage<TData> where TData: Serialize + Deser
         }
     }
 
-    fn flush(&mut self) {
+    fn clear(&mut self) {
         delete_dir_contents(fs::read_dir(&(self.base_dir)));
     }
 }
