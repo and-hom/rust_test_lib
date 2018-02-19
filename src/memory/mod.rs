@@ -1,19 +1,23 @@
 use ::Storage;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 struct MemoryStorage<TData> {
-    storage: HashMap<String, TData>
+    storage: HashMap<String, Rc<TData>>
 }
 
 impl<TData> Storage<TData> for MemoryStorage<TData> {
     fn store(&mut self, id: &str, data: TData) {
-        self.storage.insert(id.to_string(), data);
+        self.storage.insert(id.to_string(), Rc::new(data));
     }
 
-    fn read(&self, id: &str, callback: &Fn(Option<&TData>)) {
-        let found = self.storage.get(id);
-        callback(found);
+    fn read(&self, id: &str) -> Option<Rc<TData>> {
+        match self.storage.get(id) {
+            None => None,
+            Some(x) => Some(Rc::clone(&x))
+        }
     }
+
     fn flush(&mut self) {
         let s = &mut (self.storage);
         s.clear();

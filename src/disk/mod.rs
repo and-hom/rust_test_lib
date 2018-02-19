@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::PathBuf;
 use std::fs;
+use std::rc::Rc;
 use std::marker::PhantomData;
 use self::serde::de::DeserializeOwned;
 use self::serde::ser::Serialize;
@@ -52,14 +53,14 @@ impl<TData> Storage<TData> for FileStorage<TData> where TData: Serialize + Deser
         };
     }
 
-    fn read(&self, id: &str, callback: &Fn(Option<&TData>)) {
+    fn read(&self, id: &str) -> Option<Rc<TData>> {
         let path = self.path(id);
         let path_str = match path.to_str() {
             None => "unknown",
             Some(x) => x,
         };
 
-        let found = match File::open(&path) {
+        let found: Option<TData> = match File::open(&path) {
             Err(why) => {
                 error!("couldn't open {}: {}", path_str, why.description());
                 None
@@ -87,9 +88,11 @@ impl<TData> Storage<TData> for FileStorage<TData> where TData: Serialize + Deser
             }
         };
         match found {
-            None => callback(None),
-            Some(x) => callback(Some(&x))
-        };
+            None => None,
+            Some(x) => {
+                Some(Rc::new(x))
+            }
+        }
     }
 
     fn flush(&mut self) {
