@@ -6,3 +6,4 @@ authors = ["Андрей Хомяков <and.hom@gmail.com>"]
 [dependencies]
 serde = "1.0.27"
 bincode = "1.0.0"
+log = "0.4.1"

@@ -3,10 +3,11 @@ extern crate serde;
 
 use ::Storage;
 use std::error::Error;
+use std::io;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::PathBuf;
-use std::fs::{create_dir_all, remove_dir_all, remove_file};
+use std::fs;
 use std::marker::PhantomData;
 use self::serde::de::DeserializeOwned;
 use self::serde::ser::Serialize;
@@ -60,21 +61,21 @@ impl<TData> Storage<TData> for FileStorage<TData> where TData: Serialize + Deser
 
         let found = match File::open(&path) {
             Err(why) => {
-                println!("couldn't open {}: {}", path_str, why.description());
+                error!("couldn't open {}: {}", path_str, why.description());
                 None
             }
             Ok(mut file) => {
                 let mut buffer = Vec::new();
                 match file.read_to_end(&mut buffer) {
                     Err(why) => {
-                        println!("couldn't read data from {}: {}", path_str, why.description());
+                        error!("couldn't read data from {}: {}", path_str, why.description());
                         None
                     }
                     Ok(_) => {
                         let x: Result<TData, _> = bincode::deserialize(&buffer);
                         match x {
                             Err(why) => {
-                                println!("couldn't deserialize data from {}: {}", path_str, why.description());
+                                error!("couldn't deserialize data from {}: {}", path_str, why.description());
                                 None
                             }
                             Ok(d) => {
@@ -91,7 +92,9 @@ impl<TData> Storage<TData> for FileStorage<TData> where TData: Serialize + Deser
         };
     }
 
-    fn flush(&self) {}
+    fn flush(&mut self) {
+        delete_dir_contents(fs::read_dir(&(self.base_dir)));
+    }
 }
 
 
@@ -102,7 +105,7 @@ pub fn new<TData>(base_dir: &str) -> Box<Storage<TData>>
         if path.exists() {
             panic!("Base dir {} exists but is not a directory", base_dir)
         } else {
-            match create_dir_all(&path) {
+            match fs::create_dir_all(&path) {
                 Err(why) => panic!("Can not mkdir {}: {}", base_dir, why.description()),
                 Ok(_) => ()
             }
@@ -112,4 +115,20 @@ pub fn new<TData>(base_dir: &str) -> Box<Storage<TData>>
         base_dir: path,
         phantom: PhantomData
     })
+}
+
+fn delete_dir_contents(read_dir_res: Result<fs::ReadDir, io::Error>) {
+    if let Ok(dir) = read_dir_res {
+        for entry in dir {
+            if let Ok(entry) = entry {
+                let path = entry.path();
+
+                if path.is_dir() {
+                    fs::remove_dir_all(path).expect("Failed to remove a dir");
+                } else {
+                    fs::remove_file(path).expect("Failed to remove a file");
+                }
+            };
+        }
+    };
 }

@@ -14,7 +14,10 @@ impl<TData> Storage<TData> for MemoryStorage<TData> {
         let found = self.storage.get(id);
         callback(found);
     }
-    fn flush(&self) {}
+    fn flush(&mut self) {
+        let s = &mut (self.storage);
+        s.clear();
+    }
 }
 
 pub fn new<TData>() -> Box<Storage<TData>> where TData: 'static {
