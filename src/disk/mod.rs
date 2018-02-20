@@ -25,7 +25,7 @@ impl<TData> FileStorage<TData> where TData: Serialize + DeserializeOwned {
 }
 
 impl<TData> Storage<TData> for FileStorage<TData> where TData: Serialize + DeserializeOwned {
-    fn store(&mut self, id: &str, data: TData) {
+    fn store(&mut self, id: &str, data: &TData) {
         let path = self.path(id);
         let path_str = match path.to_str() {
             None => "unknown",
@@ -39,7 +39,7 @@ impl<TData> Storage<TData> for FileStorage<TData> where TData: Serialize + Deser
             Ok(file) => file,
         };
 
-        let bytes = match bincode::serialize(&data) {
+        let bytes = match bincode::serialize(data) {
             Err(why) => panic!("couldn't serialize data: {}", why.description()),
             Ok(x) => x
         };
@@ -96,7 +96,9 @@ impl<TData> Storage<TData> for FileStorage<TData> where TData: Serialize + Deser
     }
 
     fn clear(&mut self) {
-        delete_dir_contents(fs::read_dir(&(self.base_dir)));
+        if self.base_dir.is_dir() {
+            delete_dir_contents(fs::read_dir(&(self.base_dir)));
+        }
     }
 }
 
@@ -125,7 +127,6 @@ fn delete_dir_contents(read_dir_res: Result<fs::ReadDir, io::Error>) {
         for entry in dir {
             if let Ok(entry) = entry {
                 let path = entry.path();
-
                 if path.is_dir() {
                     fs::remove_dir_all(path).expect("Failed to remove a dir");
                 } else {

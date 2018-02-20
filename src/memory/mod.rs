@@ -1,14 +1,16 @@
 use ::Storage;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::clone::Clone;
 
-struct MemoryStorage<TData> {
+struct MemoryStorage<TData> where TData: Clone {
     storage: HashMap<String, Rc<TData>>
 }
 
-impl<TData> Storage<TData> for MemoryStorage<TData> {
-    fn store(&mut self, id: &str, data: TData) {
-        self.storage.insert(id.to_string(), Rc::new(data));
+impl<TData> Storage<TData> for MemoryStorage<TData> where TData: Clone {
+    fn store(&mut self, id: &str, data: &TData) {
+        let cloned_data = data.clone();
+        self.storage.insert(id.to_string(), Rc::new(cloned_data));
     }
 
     fn read(&self, id: &str) -> Option<Rc<TData>> {
@@ -24,7 +26,7 @@ impl<TData> Storage<TData> for MemoryStorage<TData> {
     }
 }
 
-pub fn new<TData>() -> Box<Storage<TData>> where TData: 'static {
+pub fn new<TData>() -> Box<Storage<TData>> where TData: 'static + Clone {
     Box::new(MemoryStorage {
         storage: HashMap::new()
     })
