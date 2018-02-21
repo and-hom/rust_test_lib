@@ -1,8 +1,11 @@
 pub mod memory;
 pub mod disk;
 
+#[macro_use]
+extern crate serde_derive;
+
 #[cfg(test)]
-pub mod test;
+mod test;
 
 #[macro_use]
 extern crate log;

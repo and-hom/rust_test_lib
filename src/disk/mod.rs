@@ -1,5 +1,5 @@
 extern crate bincode;
-extern crate serde;
+pub extern crate serde;
 
 use ::Storage;
 use std::error::Error;
