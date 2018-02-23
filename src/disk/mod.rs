@@ -24,6 +24,42 @@ impl<TData> FileStorage<TData> where TData: Serialize + DeserializeOwned {
     }
 }
 
+macro_rules! try_or_panic {
+    ($r:expr, $msg:expr) => {
+        match $r {
+            Err(why) => panic!($msg, why.description()),
+            Ok(x) => x,
+        }
+    };
+    ($r:expr, $msg:expr, $($arg:tt)+) => {
+        match $r {
+            Err(why) => panic!($msg, $($arg)+ , why.description()),
+            Ok(x) => x,
+        }
+    };
+}
+
+macro_rules! try_or_none {
+    ($r:expr, $msg:expr) => {{
+        match $r {
+            Err(why) => {
+                error!($msg, why.description());
+                return None;
+            },
+            Ok(x) => x,
+        }
+    }};
+    ($r:expr, $msg:expr, $($arg:tt)+) => {{
+        match $r {
+            Err(why) => {
+                error!($msg, $($arg)+, why.description());
+                return None;
+            },
+            Ok(x) => x,
+        }
+    }};
+}
+
 impl<TData> Storage<TData> for FileStorage<TData> where TData: Serialize + DeserializeOwned {
     fn store(&mut self, id: &str, data: &TData) {
         let path = self.path(id);
@@ -32,25 +68,9 @@ impl<TData> Storage<TData> for FileStorage<TData> where TData: Serialize + Deser
             Some(x) => x,
         };
 
-        let mut file = match File::create(&path) {
-            Err(why) => {
-                panic!("couldn't open {}: {}", path_str, why.description())
-            }
-            Ok(file) => file,
-        };
-
-        let bytes = match bincode::serialize(data) {
-            Err(why) => panic!("couldn't serialize data: {}", why.description()),
-            Ok(x) => x
-        };
-
-        match file.write_all(&bytes) {
-            Err(why) => {
-                panic!("couldn't write to {}: {}", path_str,
-                       why.description())
-            }
-            Ok(_) => (),
-        };
+        let mut file = try_or_panic!(File::create(&path), "couldn't open {}: {}", path_str);
+        let bytes = try_or_panic!(bincode::serialize(data), "couldn't serialize data: {}");
+        try_or_panic!(file.write_all(&bytes) ,"couldn't write to {}: {}", path_str);
     }
 
     fn read(&self, id: &str) -> Option<Rc<TData>> {
@@ -60,39 +80,12 @@ impl<TData> Storage<TData> for FileStorage<TData> where TData: Serialize + Deser
             Some(x) => x,
         };
 
-        let found: Option<TData> = match File::open(&path) {
-            Err(why) => {
-                error!("couldn't open {}: {}", path_str, why.description());
-                None
-            }
-            Ok(mut file) => {
-                let mut buffer = Vec::new();
-                match file.read_to_end(&mut buffer) {
-                    Err(why) => {
-                        error!("couldn't read data from {}: {}", path_str, why.description());
-                        None
-                    }
-                    Ok(_) => {
-                        let x: Result<TData, _> = bincode::deserialize(&buffer);
-                        match x {
-                            Err(why) => {
-                                error!("couldn't deserialize data from {}: {}", path_str, why.description());
-                                None
-                            }
-                            Ok(d) => {
-                                Some(d)
-                            }
-                        }
-                    }
-                }
-            }
-        };
-        match found {
-            None => None,
-            Some(x) => {
-                Some(Rc::new(x))
-            }
-        }
+        let mut file = try_or_none!(File::open(&path), "couldn't open {}: {}", path_str);
+        let mut buffer = Vec::new();
+        try_or_none!(file.read_to_end(&mut buffer),"couldn't read data from {}: {}", path_str);
+        let found = try_or_none!(bincode::deserialize(&buffer), "couldn't deserialize data from {}: {}", path_str);
+        
+        Some(Rc::new(found))
     }
 
     fn clear(&mut self) {
