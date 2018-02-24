@@ -1,3 +1,6 @@
+//! Filesystem storage implementation
+//!
+//! Every value stored in separate file
 extern crate bincode;
 pub extern crate serde;
 
@@ -95,7 +98,7 @@ impl<TData> Storage<TData> for FileStorage<TData> where TData: Serialize + Deser
     }
 }
 
-
+/// Create filesystem storage instance
 pub fn new<TData>(base_dir: &str) -> Box<Storage<TData>>
     where TData: 'static + Serialize + DeserializeOwned {
     let path = PathBuf::from(base_dir);

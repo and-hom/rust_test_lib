@@ -1,3 +1,4 @@
+//! Hash-map storage implementation
 use ::Storage;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -26,6 +27,7 @@ impl<TData> Storage<TData> for MemoryStorage<TData> where TData: Clone {
     }
 }
 
+/// Create in-memory storage instance
 pub fn new<TData>() -> Box<Storage<TData>> where TData: 'static + Clone {
     Box::new(MemoryStorage {
         storage: HashMap::new()
