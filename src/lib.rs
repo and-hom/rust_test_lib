@@ -11,6 +11,7 @@ mod test;
 extern crate log;
 
 use std::rc::Rc;
+use std::error::Error;
 
 /// Key-value storage. Key is allways ``&str``
 ///
@@ -31,15 +32,15 @@ use std::rc::Rc;
 /// storage.store("2", &val2);
 ///
 /// match storage.read("1") {
-///     Some(x) => assert_eq!(Rc::deref(&x), &val1),
-///     None => panic!("Should not")
+///     Ok(x) => assert_eq!(Rc::deref(&x), &val1),
+///     Err(_) => panic!("Should not ever happen")
 /// }
 /// ```
-pub trait Storage<TData> {
+pub trait Storage<TData, StoreError: Error, ReadError: Error> {
     /// Store data by key
-    fn store(&mut self, id: &str, data: &TData);
+    fn store(&mut self, id: &str, data: &TData) -> Result<(), StoreError>;
     /// Read value by key
-    fn read(&self, id: &str) -> Option<Rc<TData>>;
+    fn read(&self, id: &str) -> Result<Rc<TData>, ReadError>;
     /// Remove all data
     fn clear(&mut self);
 }
