@@ -15,10 +15,7 @@ impl<TData> Storage<TData> for MemoryStorage<TData> where TData: Clone {
     }
 
     fn read(&self, id: &str) -> Option<Rc<TData>> {
-        match self.storage.get(id) {
-            None => None,
-            Some(x) => Some(Rc::clone(&x))
-        }
+        self.storage.get(id).and_then(|x| { Some(Rc::clone(x)) })
     }
 
     fn clear(&mut self) {

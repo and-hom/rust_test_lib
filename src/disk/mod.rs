@@ -29,33 +29,19 @@ impl<TData> FileStorage<TData> where TData: Serialize + DeserializeOwned {
 
 macro_rules! try_or_panic {
     ($r:expr, $msg:expr) => {
-        match $r {
-            Err(why) => panic!($msg, why.description()),
-            Ok(x) => x,
-        }
+        $r.expect($msg)
     };
     ($r:expr, $msg:expr, $($arg:tt)+) => {
-        match $r {
-            Err(why) => panic!($msg, $($arg)+ , why.description()),
-            Ok(x) => x,
-        }
+        $r.expect(&format!($msg, $($arg)+))
     };
 }
 
 macro_rules! try_or_none {
-    ($r:expr, $msg:expr) => {{
-        match $r {
-            Err(why) => {
-                error!($msg, why.description());
-                return None;
-            },
-            Ok(x) => x,
-        }
-    }};
     ($r:expr, $msg:expr, $($arg:tt)+) => {{
         match $r {
             Err(why) => {
-                error!($msg, $($arg)+, why.description());
+                let msg_str = format!($msg, $($arg)+);
+                error!("{}: {:?}", msg_str, why.description());
                 return None;
             },
             Ok(x) => x,
@@ -66,28 +52,22 @@ macro_rules! try_or_none {
 impl<TData> Storage<TData> for FileStorage<TData> where TData: Serialize + DeserializeOwned {
     fn store(&mut self, id: &str, data: &TData) {
         let path = self.path(id);
-        let path_str = match path.to_str() {
-            None => "unknown",
-            Some(x) => x,
-        };
+        let path_str = path.to_str().unwrap_or("unknown");
 
-        let mut file = try_or_panic!(File::create(&path), "couldn't open {}: {}", path_str);
-        let bytes = try_or_panic!(bincode::serialize(data), "couldn't serialize data: {}");
-        try_or_panic!(file.write_all(&bytes) ,"couldn't write to {}: {}", path_str);
+        let mut file = try_or_panic!(File::create(&path), "couldn't open {}", path_str);
+        let bytes = try_or_panic!(bincode::serialize(data), "couldn't serialize data");
+        try_or_panic!(file.write_all(&bytes) ,"couldn't write to {}", path_str);
     }
 
     fn read(&self, id: &str) -> Option<Rc<TData>> {
         let path = self.path(id);
-        let path_str = match path.to_str() {
-            None => "unknown",
-            Some(x) => x,
-        };
+        let path_str = path.to_str().unwrap_or("unknown");
 
-        let mut file = try_or_none!(File::open(&path), "couldn't open {}: {}", path_str);
+        let mut file = try_or_none!(File::open(&path), "couldn't open {}", path_str);
         let mut buffer = Vec::new();
-        try_or_none!(file.read_to_end(&mut buffer),"couldn't read data from {}: {}", path_str);
-        let found = try_or_none!(bincode::deserialize(&buffer), "couldn't deserialize data from {}: {}", path_str);
-        
+        try_or_none!(file.read_to_end(&mut buffer),"couldn't read data from {}", path_str);
+        let found = try_or_none!(bincode::deserialize(&buffer), "couldn't deserialize data from {}", path_str);
+
         Some(Rc::new(found))
     }
 
@@ -106,10 +86,7 @@ pub fn new<TData>(base_dir: &str) -> Box<Storage<TData>>
         if path.exists() {
             panic!("Base dir {} exists but is not a directory", base_dir)
         } else {
-            match fs::create_dir_all(&path) {
-                Err(why) => panic!("Can not mkdir {}: {}", base_dir, why.description()),
-                Ok(_) => ()
-            }
+            fs::create_dir_all(&path).expect(&format!("Can not mkdir {}", base_dir));
         }
     }
     Box::new(FileStorage {
