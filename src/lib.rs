@@ -70,6 +70,13 @@ impl error::Error for StoreError {
             StoreError::INTERNAL(ref err) => err.description(),
         }
     }
+
+    fn cause(&self) -> Option<&error::Error> {
+        match *self {
+            StoreError::IO(ref err) => Some(err),
+            StoreError::INTERNAL(ref err) => Some(err.as_ref()),
+        }
+    }
 }
 
 impl From<io::Error> for StoreError {
@@ -102,6 +109,14 @@ impl error::Error for ReadError {
             ReadError::MISSING(_) => "Missing key",
             ReadError::IO(ref err) => err.description(),
             ReadError::INTERNAL(ref err) => err.description(),
+        }
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        match *self {
+            ReadError::MISSING(_) => None,
+            ReadError::IO(ref err) => Some(err),
+            ReadError::INTERNAL(ref err) => Some(err.as_ref()),
         }
     }
 }
