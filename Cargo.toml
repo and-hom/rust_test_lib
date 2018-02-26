@@ -8,3 +8,5 @@ serde = "1.0.27"
 serde_derive = "1.0.27"
 bincode = "1.0.0"
 log = "0.4.1"
+
+libc = "0.2.36"
