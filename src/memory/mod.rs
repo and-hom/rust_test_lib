@@ -2,6 +2,7 @@
 use ::Storage;
 use ::ReadError;
 use ::StoreError;
+use ::RemoveError;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::clone::Clone;
@@ -20,6 +21,12 @@ impl<TData> Storage<TData> for MemoryStorage<TData> where TData: Clone {
         self.storage.get(id)
             .ok_or(ReadError::MISSING(id.to_string()))
             .map(|x| { Rc::clone(x) })
+    }
+
+    fn remove(&mut self, id: &str) -> Result<(), RemoveError> {
+        self.storage.remove(id)
+            .ok_or(RemoveError::MISSING(id.to_string()))
+            .map(|_| { () })
     }
 
     fn clear(&mut self) {

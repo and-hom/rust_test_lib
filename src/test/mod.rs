@@ -33,6 +33,7 @@ impl<TData> StorageTest<TData> where
             for data in params.iter() {
                 StorageTest::test_store(storage, data);
                 StorageTest::test_overwrite(storage, data);
+                StorageTest::test_remove(storage, data);
             }
         }
     }
@@ -50,6 +51,14 @@ impl<TData> StorageTest<TData> where
         res_eq(storage.read("key1"), Some(&(conf.var1)));
         storage.store("key1", &(conf.var2)).unwrap();
         res_eq(storage.read("key1"), Some(&(conf.var2)));
+    }
+
+    fn test_remove(storage: &mut Box<Storage<TData>>, conf: &TestConf<TData>) {
+        storage.clear();
+        storage.store("key1", &(conf.var1)).unwrap();
+        res_eq(storage.read("key1"), Some(&(conf.var1)));
+        storage.remove("key1").unwrap();
+        res_eq(storage.read("key1"), None);
     }
 }
 

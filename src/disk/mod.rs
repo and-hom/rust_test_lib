@@ -7,6 +7,7 @@ pub extern crate serde;
 use ::Storage;
 use ::ReadError;
 use ::StoreError;
+use ::RemoveError;
 use std::io;
 use std::fs::File;
 use std::io::prelude::*;
@@ -57,6 +58,16 @@ impl<TData> Storage<TData> for FileStorage<TData>
         let found = try!(bincode::deserialize(&buffer));
 
         Ok(Rc::new(found))
+    }
+
+    fn remove(&mut self, id: &str) -> Result<(), RemoveError> {
+        let path = self.path(id);
+        if !path.exists() {
+            return Err(RemoveError::MISSING(id.to_string()));
+        }
+        fs::remove_file(path)
+            .map_err(RemoveError::from)
+            .map(|_| { () })
     }
 
     fn clear(&mut self) {

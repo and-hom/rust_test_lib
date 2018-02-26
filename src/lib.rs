@@ -43,6 +43,8 @@ pub trait Storage<TData> {
     fn store(&mut self, id: &str, data: &TData) -> Result<(), StoreError>;
     /// Read value by key
     fn read(&self, id: &str) -> Result<Rc<TData>, ReadError>;
+    /// Remove value by key
+    fn remove(&mut self, id: &str) -> Result<(), RemoveError>;
     /// Remove all data
     fn clear(&mut self);
 }
@@ -124,6 +126,47 @@ impl error::Error for ReadError {
 impl From<io::Error> for ReadError {
     fn from(err: io::Error) -> ReadError {
         ReadError::IO(err)
+    }
+}
+
+#[derive(Debug)]
+pub enum RemoveError {
+    MISSING(String),
+    IO(io::Error),
+    INTERNAL(Box<error::Error>),
+}
+
+impl fmt::Display for RemoveError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            RemoveError::MISSING(ref key) => write!(f, "Missing key {}", key),
+            RemoveError::IO(ref err) => err.fmt(f),
+            RemoveError::INTERNAL(ref err) => err.fmt(f),
+        }
+    }
+}
+
+impl error::Error for RemoveError {
+    fn description(&self) -> &str {
+        match *self {
+            RemoveError::MISSING(_) => "Missing key",
+            RemoveError::IO(ref err) => err.description(),
+            RemoveError::INTERNAL(ref err) => err.description(),
+        }
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        match *self {
+            RemoveError::MISSING(_) => None,
+            RemoveError::IO(ref err) => Some(err),
+            RemoveError::INTERNAL(ref err) => Some(err.as_ref()),
+        }
+    }
+}
+
+impl From<io::Error> for RemoveError {
+    fn from(err: io::Error) -> RemoveError {
+        RemoveError::IO(err)
     }
 }
 
