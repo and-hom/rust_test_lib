@@ -8,7 +8,6 @@ use std::clone;
 use std::rc::Rc;
 use std::ops::Deref;
 use std::thread;
-use std::error::Error;
 
 fn disk_path() -> String {
     let current_thread = thread::current();
@@ -20,18 +19,14 @@ struct TestConf<TData> where TData: cmp::PartialEq<TData> + fmt::Debug + clone::
     var2: TData
 }
 
-struct StorageTest<TData, SE, RE> where
-    TData: cmp::PartialEq<TData> + fmt::Debug + clone::Clone,
-    SE: Error,
-    RE: Error
+struct StorageTest<TData> where
+    TData: cmp::PartialEq<TData> + fmt::Debug + clone::Clone
 {
-    storages: Vec<Box<Storage<TData, SE, RE>>>,
+    storages: Vec<Box<Storage<TData>>>,
 }
 
-impl<TData, SE, RE> StorageTest<TData, SE, RE> where
-    TData: cmp::PartialEq<TData> + fmt::Debug + clone::Clone,
-    SE: Error,
-    RE: Error
+impl<TData> StorageTest<TData> where
+    TData: cmp::PartialEq<TData> + fmt::Debug + clone::Clone
 {
     fn do_test(&mut self, params: Vec<TestConf<TData>>) {
         for storage in self.storages.iter_mut() {
@@ -42,47 +37,47 @@ impl<TData, SE, RE> StorageTest<TData, SE, RE> where
         }
     }
 
-    fn test_store(storage: &mut Box<Storage<TData, SE, RE>>, conf: &TestConf<TData>) {
+    fn test_store(storage: &mut Box<Storage<TData>>, conf: &TestConf<TData>) {
         storage.clear();
-        opt_eq(storage.read("key1"), None);
-        storage.store("key1", &(conf.var1));
-        opt_eq(storage.read("key1"), Some(&(conf.var1)));
+        res_eq(storage.read("key1"), None);
+        storage.store("key1", &(conf.var1)).unwrap();
+        res_eq(storage.read("key1"), Some(&(conf.var1)));
     }
 
-    fn test_overwrite(storage: &mut Box<Storage<TData, SE, RE>>, conf: &TestConf<TData>) {
+    fn test_overwrite(storage: &mut Box<Storage<TData>>, conf: &TestConf<TData>) {
         storage.clear();
-        storage.store("key1", &(conf.var1));
-        opt_eq(storage.read("key1"), Some(&(conf.var1)));
-        storage.store("key1", &(conf.var2));
-        opt_eq(storage.read("key1"), Some(&(conf.var2)));
+        storage.store("key1", &(conf.var1)).unwrap();
+        res_eq(storage.read("key1"), Some(&(conf.var1)));
+        storage.store("key1", &(conf.var2)).unwrap();
+        res_eq(storage.read("key1"), Some(&(conf.var2)));
     }
 }
 
-//#[test]
-//fn test_str_mem() {
-//    let mut test_mem_str: StorageTest<&str> = StorageTest {
-//        storages: vec![memory::new()]
-//    };
-//    test_mem_str.do_test(vec![TestConf {
-//        var1: "var1",
-//        var2: "var2",
-//    }]);
-//}
-//
-//#[test]
-//fn test_string() {
-//    let mut test_mem_str: StorageTest<String> = StorageTest {
-//        storages: vec![memory::new(), disk::new(&*disk_path())]
-//    };
-//    test_mem_str.do_test(vec![TestConf {
-//        var1: "var1".to_string(),
-//        var2: "var2".to_string(),
-//    }]);
-//}
+#[test]
+fn test_str_mem() {
+    let mut test_mem_str: StorageTest<&str> = StorageTest {
+        storages: vec![memory::new()]
+    };
+    test_mem_str.do_test(vec![TestConf {
+        var1: "var1",
+        var2: "var2",
+    }]);
+}
 
 #[test]
-fn test_i32<X: Error, Y: Error>() {
-    let mut test_mem_str: StorageTest<i32, X, Y> = StorageTest {
+fn test_string() {
+    let mut test_mem_str: StorageTest<String> = StorageTest {
+        storages: vec![memory::new(), disk::new(&*disk_path())]
+    };
+    test_mem_str.do_test(vec![TestConf {
+        var1: "var1".to_string(),
+        var2: "var2".to_string(),
+    }]);
+}
+
+#[test]
+fn test_i32() {
+    let mut test_mem_str: StorageTest<i32> = StorageTest {
         storages: vec![memory::new(), disk::new(&*disk_path())]
     };
     test_mem_str.do_test(vec![TestConf {
@@ -91,44 +86,47 @@ fn test_i32<X: Error, Y: Error>() {
     }]);
 }
 
-//#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-//#[serde(deny_unknown_fields)]
-//struct CustomStruct {
-//    x: String,
-//    y: bool,
-//    z: f64,
-//}
-//
-//#[test]
-//fn test_custom_struct() {
-//    let mut test_mem_str: StorageTest<CustomStruct> = StorageTest {
-//        storages: vec![memory::new(), disk::new(&*disk_path())]
-//    };
-//    test_mem_str.do_test(vec![TestConf {
-//        var1: CustomStruct {
-//            x: "aaa".to_string(),
-//            y: true,
-//            z: 0.256,
-//        },
-//        var2: CustomStruct {
-//            x: "bbb".to_string(),
-//            y: false,
-//            z: 128.,
-//        },
-//    }]);
-//}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct CustomStruct {
+    x: String,
+    y: bool,
+    z: f64,
+}
 
-
-fn opt_eq<T>(actual: Option<Rc<T>>, expected: Option<&T>) where T: fmt::Debug + cmp::PartialEq {
-    match actual {
-        None => match expected {
-            None => (),
-            Some(e) => panic!("Expected {:?} actual None", e)
+#[test]
+fn test_custom_struct() {
+    let mut test_mem_str: StorageTest<CustomStruct> = StorageTest {
+        storages: vec![memory::new(), disk::new(&*disk_path())]
+    };
+    test_mem_str.do_test(vec![TestConf {
+        var1: CustomStruct {
+            x: "aaa".to_string(),
+            y: true,
+            z: 0.256,
         },
-        Some(a) => match expected {
-            None => panic!("Expected None actual {:?}", a),
+        var2: CustomStruct {
+            x: "bbb".to_string(),
+            y: false,
+            z: 128.,
+        },
+    }]);
+}
+
+
+fn res_eq<T, E>(actual: Result<Rc<T>, E>, expected: Option<&T>) where
+    T: fmt::Debug + cmp::PartialEq,
+    E: fmt::Debug
+{
+    match actual {
+        Err(err) => match expected {
+            None => (),
+            Some(expected_val) => panic!("Expected {:?} actual error: {:?}", expected_val, err)
+        },
+        Ok(actual_val) => match expected {
+            None => panic!("Expected None actual {:?}", actual_val),
             Some(e) => {
-                let a_ref = Rc::deref(&a);
+                let a_ref = Rc::deref(&actual_val);
                 assert_eq!(a_ref, e)
             }
         }

@@ -11,7 +11,9 @@ mod test;
 extern crate log;
 
 use std::rc::Rc;
-use std::error::Error;
+use std::io;
+use std::fmt;
+use std::error;
 
 /// Key-value storage. Key is allways ``&str``
 ///
@@ -36,7 +38,7 @@ use std::error::Error;
 ///     Err(_) => panic!("Should not ever happen")
 /// }
 /// ```
-pub trait Storage<TData, StoreError: Error, ReadError: Error> {
+pub trait Storage<TData> {
     /// Store data by key
     fn store(&mut self, id: &str, data: &TData) -> Result<(), StoreError>;
     /// Read value by key
@@ -44,3 +46,69 @@ pub trait Storage<TData, StoreError: Error, ReadError: Error> {
     /// Remove all data
     fn clear(&mut self);
 }
+
+
+#[derive(Debug)]
+pub enum StoreError {
+    IO(io::Error),
+    INTERNAL(Box<error::Error>),
+}
+
+impl fmt::Display for StoreError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            StoreError::IO(ref err) => err.fmt(f),
+            StoreError::INTERNAL(ref err) => err.fmt(f),
+        }
+    }
+}
+
+impl error::Error for StoreError {
+    fn description(&self) -> &str {
+        match *self {
+            StoreError::IO(ref err) => err.description(),
+            StoreError::INTERNAL(ref err) => err.description(),
+        }
+    }
+}
+
+impl From<io::Error> for StoreError {
+    fn from(err: io::Error) -> StoreError {
+        StoreError::IO(err)
+    }
+}
+
+
+#[derive(Debug)]
+pub enum ReadError {
+    MISSING(String),
+    IO(io::Error),
+    INTERNAL(Box<error::Error>),
+}
+
+impl fmt::Display for ReadError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ReadError::MISSING(ref key) => write!(f, "Missing key {}", key),
+            ReadError::IO(ref err) => err.fmt(f),
+            ReadError::INTERNAL(ref err) => err.fmt(f),
+        }
+    }
+}
+
+impl error::Error for ReadError {
+    fn description(&self) -> &str {
+        match *self {
+            ReadError::MISSING(_) => "Missing key",
+            ReadError::IO(ref err) => err.description(),
+            ReadError::INTERNAL(ref err) => err.description(),
+        }
+    }
+}
+
+impl From<io::Error> for ReadError {
+    fn from(err: io::Error) -> ReadError {
+        ReadError::IO(err)
+    }
+}
+

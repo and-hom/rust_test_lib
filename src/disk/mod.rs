@@ -5,84 +5,17 @@ extern crate bincode;
 pub extern crate serde;
 
 use ::Storage;
-use std::error::Error;
+use ::ReadError;
+use ::StoreError;
 use std::io;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::PathBuf;
 use std::fs;
-use std::fmt;
 use std::rc::Rc;
 use std::marker::PhantomData;
 use self::serde::de::DeserializeOwned;
 use self::serde::ser::Serialize;
-
-#[derive(Debug)]
-pub enum StoreError {
-    BINCODE(bincode::Error)
-}
-
-impl fmt::Display for StoreError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        unimplemented!()
-    }
-}
-
-impl Error for StoreError {
-    fn description(&self) -> &str {
-        unimplemented!()
-    }
-}
-
-impl From<io::Error> for StoreError {
-    fn from(err: io::Error) -> StoreError {
-        StoreError::BINCODE(Box::new(bincode::ErrorKind::Io(err)))
-    }
-}
-
-impl From<bincode::Error> for StoreError {
-    fn from(err: bincode::Error) -> StoreError {
-        StoreError::BINCODE(err)
-    }
-}
-
-
-#[derive(Debug)]
-pub enum ReadError {
-    MISSING(String),
-    BINCODE(bincode::Error)
-}
-
-impl fmt::Display for ReadError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ReadError::MISSING(_) => write!(f, "Missing key {}", self.description()),
-            ReadError::BINCODE(ref err) => err.fmt(f),
-        }
-    }
-}
-
-impl Error for ReadError {
-    fn description(&self) -> &str {
-        match *self {
-            ReadError::MISSING(_) => "Missing key",
-            ReadError::BINCODE(ref err) => err.description(),
-        }
-    }
-}
-
-impl From<bincode::Error> for ReadError {
-    fn from(err: bincode::Error) -> ReadError {
-        ReadError::BINCODE(err)
-    }
-}
-
-impl From<io::Error> for ReadError {
-    fn from(err: io::Error) -> ReadError {
-        ReadError::BINCODE(Box::new(bincode::ErrorKind::Io(err)))
-    }
-}
-
 
 struct FileStorage<TData> where TData: Serialize + DeserializeOwned {
     base_dir: PathBuf,
@@ -95,21 +28,22 @@ impl<TData> FileStorage<TData> where TData: Serialize + DeserializeOwned {
     }
 }
 
-macro_rules! try_or_panic {
-    ($r:expr, $msg:expr) => {
-        $r.expect($msg)
-    };
-    ($r:expr, $msg:expr, $($arg:tt)+) => {
-        $r.expect(&format!($msg, $($arg)+))
-    };
+impl From<bincode::Error> for ReadError {
+    fn from(err: bincode::Error) -> ReadError {
+        ReadError::INTERNAL(err)
+    }
 }
 
-impl<TData> Storage<TData, StoreError, ReadError> for FileStorage<TData>
+impl From<bincode::Error> for StoreError {
+    fn from(err: bincode::Error) -> StoreError {
+        StoreError::INTERNAL(err)
+    }
+}
+
+impl<TData> Storage<TData> for FileStorage<TData>
     where TData: Serialize + DeserializeOwned {
     fn store(&mut self, id: &str, data: &TData) -> Result<(), StoreError> {
         let path = self.path(id);
-        let path_str = path.to_str().unwrap_or("unknown");
-
         let mut file = try!(File::create(&path));
         let bytes = try!(bincode::serialize(data));
         file.write_all(&bytes).map_err(StoreError::from)
@@ -117,8 +51,6 @@ impl<TData> Storage<TData, StoreError, ReadError> for FileStorage<TData>
 
     fn read(&self, id: &str) -> Result<Rc<TData>, ReadError> {
         let path = self.path(id);
-        let path_str = path.to_str().unwrap_or("unknown");
-
         let mut file = try!(File::open(&path));
         let mut buffer = Vec::new();
         try!(file.read_to_end(&mut buffer));
@@ -135,7 +67,7 @@ impl<TData> Storage<TData, StoreError, ReadError> for FileStorage<TData>
 }
 
 /// Create filesystem storage instance
-pub fn new<TData>(base_dir: &str) -> Box<Storage<TData, StoreError, ReadError>>
+pub fn new<TData>(base_dir: &str) -> Box<Storage<TData>>
     where TData: 'static + Serialize + DeserializeOwned {
     let path = PathBuf::from(base_dir);
     if !path.is_dir() {
