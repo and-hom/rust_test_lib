@@ -5,101 +5,71 @@ extern crate rustc_serialize as serialize;
 extern crate valico;
 pub extern crate rust_test_lib;
 
-use self::valico::json_dsl;
 use self::rustless::server::status::StatusCode;
 use self::rustless::{
     Application, Api, Nesting
 };
+use self::rustless::framework::Client;
+use self::rustless::framework::client;
+use self::rustless::framework::endpoint;
+use self::rustless::errors;
 use std::error::Error;
-use rust_test_lib::{StoreError, ReadError};
+use rust_test_lib::{ReadError, StoreError};
 
 use std::sync::Mutex;
-
-use self::rustless::framework::Client;
-
-pub type Storage = rust_test_lib::Storage<u32>;
 
 pub struct Server {
     iron: iron::Iron<Application>
 }
 
+pub type Storage = rust_test_lib::Storage<u32>;
+
+enum Method {
+    GET,
+    POST,
+}
+
 impl Server {
     pub fn new(storage: Box<Storage>) -> Result<Server, ()> {
         let api = Api::build(|api| {
-            //            api.version("v1", Versioning::Path);
-
             api.mount(Api::build(|storage_api| {
-                storage_api.get(":key", |endpoint| {
-                    // Add description
-                    endpoint.desc("Get object");
-
-                    // Valico settings for endpoint params
-                    endpoint.params(|params| {
-                        params.req_typed("key", json_dsl::string())
-                    });
-
-                    endpoint.handle(|mut client, params| {
-                        match params.find("key") {
-                            None => {
-                                client.set_status(StatusCode::BadRequest);
-                                Ok(client)
-                            }
-                            Some(x) => {
-                                let _storage: &Mutex<Box<Storage>> = client.app.storage();
-                                let key = x.as_str().unwrap();
-                                match _storage.lock().unwrap().read(key) {
-                                    Err(e) => {
-                                        client.set_status(http_code_read(&e));
-                                        client.text(e.description().to_string())
-                                    }
-                                    Ok(x) => {
-                                        client.text(format!("{}", x))
-                                    }
-                                }
-                            }
+                Server::on_key(storage_api, Method::GET, |key, client| {
+                    let mut client = client;
+                    let mut _storage: &Mutex<Box<Storage>> = client.app.storage();
+                    match _storage.lock().unwrap().read(key) {
+                        Err(e) => {
+                            client.set_status(http_code_read(&e));
+                            client.text(e.description().to_string())
                         }
-                    })
+                        Ok(x) => {
+                            client.text(format!("{}", x))
+                        }
+                    }
                 });
-                storage_api.post(":key", |endpoint| {
-                    // Add description
-                    endpoint.desc("Put object");
 
-                    // Valico settings for endpoint params
-                    endpoint.params(|params| {
-                        params.req_typed("key", json_dsl::string())
-                    });
+                Server::on_key(storage_api, Method::POST, |key, client: Client| {
+                    let mut client = client;
+                    let mut _storage: &Mutex<Box<Storage>> = client.app.storage();
 
-                    endpoint.handle(|mut client, params| {
-                        match params.find("key") {
-                            None => {
-                                client.set_status(StatusCode::BadRequest);
-                                Ok(client)
-                            }
-                            Some(x) => {
-                                let mut _storage: &Mutex<Box<Storage>> = client.app.storage();
-                                let key = x.as_str().unwrap();
-
-                                let body_str = read_body(&mut client);
-                                match u32::from_str_radix(body_str.as_str(), 10) {
-                                    Err(e) => {
-                                        client.set_status(StatusCode::BadRequest);
-                                        client.text(e.description().to_string())
-                                    }
-                                    Ok(value) => {
-                                        match _storage.lock().unwrap().store(key, &value) {
-                                            Err(e) => {
-                                                client.set_status(http_code_store(&e));
-                                                client.text(e.description().to_string())
-                                            }
-                                            Ok(_) => {
-                                                Ok(client)
-                                            }
-                                        }
-                                    }
+                    let body_str = read_body(&mut client);
+                    match u32::from_str_radix(body_str.as_str(), 10) {
+                        Err(e) => {
+                            client.set_status(StatusCode::BadRequest);
+                            client.text(e.description().to_string())
+                        }
+                        Ok(value) => {
+                            match _storage.lock().unwrap().store(key, &value) {
+                                Err(e) => {
+                                    client.set_status(http_code_store(&e));
+                                    client.text(e.description().to_string())
+                                }
+                                Ok(_) => {
+                                    client.set_status(StatusCode::Ok);
+                                    client.text("".to_string())
                                 }
                             }
                         }
-                    })
+                    }
                 });
             }));
         });
@@ -112,6 +82,30 @@ impl Server {
         })
     }
 
+    fn on_key<A>(api: &mut Api, method: Method, action: A) where
+        A: for<'a> Fn(&str, Client<'a>) -> Result<Client<'a>, errors::ErrorResponse> + Send + Sync + 'static
+    {
+        let callback = |endpoint: &mut endpoint::Endpoint| {
+            endpoint.handle(move |mut client, params| {
+                match params.find("key") {
+                    None => {
+                        client.set_status(StatusCode::BadRequest);
+                        client.text("key path param is required".to_string())
+                    }
+                    Some(key_opt) => {
+                        let key = key_opt.as_str().unwrap();
+                        action(key, client)
+                    }
+                }
+            })
+        };
+
+        match method {
+            Method::POST => { api.post(":key", callback); }
+            Method::GET => { let h = api.get(":key", callback); }
+        };
+    }
+
     pub fn start(self) -> Result<(), ApiError> {
         let _ = try!(self.iron.http("0.0.0.0:4000"));
         println!("Rustless server started!");
@@ -119,11 +113,17 @@ impl Server {
     }
 }
 
+
+trait Action<'a> {
+    fn do_action(&self, key: &str, cliet: &mut Client<'a>) -> client::ClientResult<'a>;
+}
+
+
 fn read_body(c: &mut Client) -> String {
     match c.request.read_to_end() {
         Err(_) => {
             panic!("Can not read request body")
-        },
+        }
         Ok(x) => x.unwrap_or("".to_string())
     }
 }
