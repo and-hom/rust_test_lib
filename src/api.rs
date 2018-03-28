@@ -14,7 +14,7 @@ use self::rustless::framework::client;
 use self::rustless::framework::endpoint;
 use self::rustless::errors;
 use std::error::Error;
-use rust_test_lib::{ReadError, StoreError};
+use rust_test_lib::{ReadError, StoreError, RemoveError};
 
 use std::sync::Mutex;
 
@@ -27,6 +27,7 @@ pub type Storage = rust_test_lib::Storage<u32>;
 enum Method {
     GET,
     POST,
+    DELETE,
 }
 
 impl Server {
@@ -43,6 +44,21 @@ impl Server {
                         }
                         Ok(x) => {
                             client.text(format!("{}", x))
+                        }
+                    }
+                });
+
+                Server::on_key(storage_api, Method::DELETE, |key, client| {
+                    let mut client = client;
+                    let mut _storage: &Mutex<Box<Storage>> = client.app.storage();
+                    match _storage.lock().unwrap().remove(key) {
+                        Err(e) => {
+                            client.set_status(http_code_remove(&e));
+                            client.text(e.description().to_string())
+                        }
+                        Ok(_) => {
+                            client.set_status(StatusCode::Ok);
+                            client.text("".to_string())
                         }
                     }
                 });
@@ -103,6 +119,7 @@ impl Server {
         match method {
             Method::POST => { api.post(":key", callback); }
             Method::GET => { api.get(":key", callback); }
+            Method::DELETE => { api.delete(":key", callback); }
         };
     }
 
@@ -155,6 +172,14 @@ impl From<hyper::Error> for ApiError {
         ApiError {
             desc: e.description().to_string()
         }
+    }
+}
+
+fn http_code_remove(e: &RemoveError) -> StatusCode {
+    match e {
+        &RemoveError::MISSING(_) => StatusCode::NotFound,
+        &RemoveError::IO(_) => StatusCode::InternalServerError,
+        &RemoveError::INTERNAL(_) => StatusCode::InternalServerError,
     }
 }
 
