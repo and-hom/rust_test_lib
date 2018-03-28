@@ -105,10 +105,15 @@ impl fmt::Display for ReadError {
     }
 }
 
+fn is_io_err_missing(err: & io::Error) -> bool {
+    if err.kind() == io::ErrorKind::NotFound { true } else { false }
+}
+
 impl error::Error for ReadError {
     fn description(&self) -> &str {
         match *self {
             ReadError::MISSING(_) => "Missing key",
+            ReadError::IO(ref err) if is_io_err_missing(err) => "Missing key",
             ReadError::IO(ref err) => err.description(),
             ReadError::INTERNAL(ref err) => err.description(),
         }
@@ -150,6 +155,7 @@ impl error::Error for RemoveError {
     fn description(&self) -> &str {
         match *self {
             RemoveError::MISSING(_) => "Missing key",
+            RemoveError::IO(ref err) if is_io_err_missing(err) => "Missing key",
             RemoveError::IO(ref err) => err.description(),
             RemoveError::INTERNAL(ref err) => err.description(),
         }

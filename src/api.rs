@@ -102,7 +102,7 @@ impl Server {
 
         match method {
             Method::POST => { api.post(":key", callback); }
-            Method::GET => { let h = api.get(":key", callback); }
+            Method::GET => { api.get(":key", callback); }
         };
     }
 
